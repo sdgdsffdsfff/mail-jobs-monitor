@@ -77,11 +77,13 @@ int httpGet(char* hostname,char *url)
 }
 
 float price_list[1024];
+float histroy_price_list[1024];
 char mail[5*1024];
 int need_send;
 
 void get_text()
 {
+	memcpy(histroy_price_list,price_list,sizeof(float) * 1024);
 	memset(price_list,0,sizeof(float) * 1024);
 	memset(mail,0,5*1024);
 	need_send = 0;
@@ -101,6 +103,18 @@ void get_text()
 			need_send = 1;
 		sprintf(mail,"%s%f\n",mail,price_list[i]);
 	}
+	int find_history = 0;
+	//和记录不同才发送
+	if(need_send == 1)
+	{
+		for(i = 0;i != 1024;++i){
+			if(price_list[i] == 0)
+				break;
+			if(price_list[i] != histroy_price_list[i])
+				find_history = 1;
+		}
+		need_send = find_history;
+	}
 	return ;
 }
 
@@ -108,9 +122,8 @@ void send_mail()
 {
 	char send_command[5*1024 + 1024];
 	memset(send_command,0,6*1024);
-	if(need_send == 0){
+	if(need_send != 0){
 		sprintf(send_command,"echo \"%s\" | mailx -A qq1 -v -s \"send from job monitor\" 541877075@qq.com",mail);
-		//printf("%s\n",send_command);
 		system(send_command);
 	}
 }
