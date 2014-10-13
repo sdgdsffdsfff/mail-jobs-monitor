@@ -4,6 +4,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include "jobs.h"
 //LOG_TAG
 
@@ -17,6 +21,56 @@
 #define BUFFSIZE 1024*1024
 
 char request[BUFFSIZE], text[5*1024*1024];
+
+static void daemonize()
+{
+	int fd0, fd1, fd2;
+	pid_t pid;
+	struct rlimit rlimit;
+
+
+	if(getrlimit(RLIMIT_NOFILE, &rlimit) < 0){
+		fprintf(stderr, "can not get file limit.\n");
+		exit(1);
+	}
+
+	if ((pid = fork()) < 0){
+		fprintf(stderr, "can not fork.\n");
+		exit(1);
+	} else if (pid != 0){  /* parent process */
+		exit(0);
+	}
+	setsid();
+	if((pid = fork()) != 0) 
+		exit(0);
+	else if(pid < 0) 
+		exit(1);
+
+	/*      
+	 * if (chdir("/") < 0){
+	 *      fprintf(stderr, ": can not change directory to /\n");
+	 *      exit(1);
+	 * }
+	 */
+
+	if (rlimit.rlim_max == RLIM_INFINITY)
+		rlimit.rlim_max = 1024;
+	int i;
+	for (i = 0; i < rlimit.rlim_max; i ++){
+		close(i);
+	}
+
+	umask(0);
+
+	fd0 = open("/dev/null", O_RDWR);
+	fd1 = dup(0);
+	fd2 = dup(0);
+	if (fd0 != 0 || fd1 != 1 || fd2 != 2){
+		fprintf(stderr, "unexpected file descriptors after daemonizing %d %d %d\n", fd0, fd1, fd2);
+		exit(1);
+	}
+	fprintf(stderr, "start.\n");
+}
 
 int httpGet(char* hostname,char *url)
 {
@@ -64,6 +118,12 @@ int httpGet(char* hostname,char *url)
 		return -99;
 	}
 	LOGI("httpGet recv");
+
+	struct timeval tv_out;
+	tv_out.tv_sec = 5;
+	tv_out.tv_usec = 0;
+
+	setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &tv_out, sizeof(tv_out));
 	memset(text,0,BUFFSIZE);
 	int recv_size = 0,all_size = 0;
 	while((recv_size = recv (sockfd, text + all_size, 1024*1024*1024, 0)) != 0){
@@ -110,7 +170,7 @@ void get_text()
 		for(i = 0;i != 1024;++i){
 			if(price_list[i] == 0)
 				break;
-			if(price_list[i] != histroy_price_list[i])
+			if(price_list[i] >= 25 && price_list[i] != histroy_price_list[i])
 				find_history = 1;
 		}
 		need_send = find_history;
@@ -137,6 +197,7 @@ static void* mail_job_monitor(time_t job_time,void *arg)
 }
 int main()
 {
+	daemonize();
 	struct job job;
 	job_service(&job);
 	job.call = mail_job_monitor;
