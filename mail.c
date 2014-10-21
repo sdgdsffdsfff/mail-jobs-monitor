@@ -8,15 +8,18 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <errno.h>
 #include "jobs.h"
 //LOG_TAG
 
+int log_fd;
+
 #ifdef DEBUG
-#define LOGI(str) printf("%s\n",str);
-#define LOGE(str) printf("%s\n",str);
+#define LOGI(str) write(log_fd,str,strlen(str))
+#define LOGE(str) write(log_fd,str,strlen(str))
 #else
-#define LOGI(str) ;
-#define LOGE(str) ;
+#define LOGI(str) write(log_fd,str,strlen(str))
+#define LOGE(str) write(log_fd,str,strlen(str))
 #endif
 #define BUFFSIZE 1024*1024
 
@@ -82,20 +85,20 @@ int httpGet(char* hostname,char *url)
 	struct sockaddr_in sin;
 	int sockfd;
 	if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) == -1) {
-		LOGE("httpget create socket failed !");
+		LOGE(strerror(errno));
 		return -100;
 	}
 
 	struct hostent * host_addr = gethostbyname(hostname);
 	if(host_addr==NULL) {
-		LOGE("httpget Unable to locate host");
+		LOGE(strerror(errno));
 		return -103;
 	}
 	sin.sin_family = AF_INET;
 	sin.sin_port = htons( (unsigned short)80);
 	sin.sin_addr.s_addr = *((unsigned long*)host_addr->h_addr_list[0]);
 	if( connect (sockfd,(const struct sockaddr *)&sin, sizeof(struct sockaddr_in) ) == -1 ) {
-		LOGE("httpget connect failed !");
+		LOGE(strerror(errno));
 		return -101;
 	}
 	LOGI("httpGet send");
@@ -114,7 +117,7 @@ int httpGet(char* hostname,char *url)
 	strcat(request, "\r\n");//空行表示结束
 	LOGI(request);
 	if( send (sockfd, request, strlen(request), 0) == -1){
-		LOGE("httpget send failed");
+		LOGE(strerror(errno));
 		return -99;
 	}
 	LOGI("httpGet recv");
@@ -131,7 +134,7 @@ int httpGet(char* hostname,char *url)
 		if(all_size > 5*1024*1024)
 			break;
 	}
-	LOGI(text);
+	//LOGI(text);
 	LOGI("httpGet end");
 	return 0;
 }
@@ -190,7 +193,8 @@ void send_mail()
 
 static void* mail_job_monitor(time_t job_time,void *arg) 
 {
-	httpGet("s.5173.com","GET /H2-xptjnl-522v1q-ae4tn2-0-wu0tw4-0-0-0-a-a-a-a-a-0-itemprice_asc-0-0.shtml HTTP/1.1\r\n");
+	if(httpGet("s.5173.com","GET /H2-xptjnl-522v1q-ae4tn2-0-wu0tw4-0-0-0-a-a-a-a-a-0-itemprice_asc-0-0.shtml HTTP/1.1\r\n") < 0)
+		return NULL;
 	get_text();
 	send_mail();
 	return NULL;
@@ -198,6 +202,8 @@ static void* mail_job_monitor(time_t job_time,void *arg)
 int main()
 {
 	daemonize();
+
+	log_fd = open("mail_log",O_WRONLY|O_CREAT|O_APPEND);
 	struct job job;
 	job_service(&job);
 	job.call = mail_job_monitor;
