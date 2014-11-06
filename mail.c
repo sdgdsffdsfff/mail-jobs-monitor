@@ -136,6 +136,7 @@ int httpGet(char* hostname,char *url)
 	}
 	//LOGI(text);
 	LOGI("httpGet end");
+	close(sockfd);
 	return 0;
 }
 
@@ -186,7 +187,9 @@ void send_mail()
 	char send_command[5*1024 + 1024];
 	memset(send_command,0,6*1024);
 	if(need_send != 0){
-		sprintf(send_command,"echo \"%s\" | mailx -A qq1 -v -s \"send from job monitor\" 541877075@qq.com",mail);
+		sprintf(send_command,"echo \"http://s.5173.com/H2-xptjnl-522v1q-ae4tn2-0-wu0tw4-0-0-0-a-a-a-a-a-0-itemprice_asc-0-0.shtml %s\" | mailx -A qq1 -v -s \"send from job monitor\" 541877075@qq.com",mail);
+		system(send_command);
+		sprintf(send_command,"echo \"http://s.5173.com/H2-xptjnl-522v1q-ae4tn2-0-wu0tw4-0-0-0-a-a-a-a-a-0-itemprice_asc-0-0.shtml %s\" | mailx -A qq1 -v -s \"send from job monitor\" 642088518@qq.com",mail);
 		system(send_command);
 	}
 }
